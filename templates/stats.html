@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-header">
+  <h2>Statistik Publik</h2>
+  <p>Ringkasan aktifitas Menfes UNBIN.</p>
+  <div class="stats-grid">
+    <div class="stat"><img src="{{ url_for('static', filename='images/icons/stats.svg') }}" alt="stats"> <span id="totalPosts">{{ stats.total_posts }}</span><small>Total Post</small></div>
+    <div class="stat"><img src="{{ url_for('static', filename='images/icons/heart.svg') }}" alt="likes"> <span id="totalLikes">{{ stats.total_likes }}</span><small>Total Like</small></div>
+    <div class="stat"><img src="{{ url_for('static', filename='images/icons/comment.svg') }}" alt="comments"> <span id="totalComments">{{ stats.total_comments }}</span><small>Total Komentar</small></div>
+  </div>
+</section>
+
+<section class="table-wrap" style="margin-top:12px">
+  <table class="table">
+    <thead><tr><th>Top Mood</th><th>Jumlah</th><th>Top Mention</th><th>Jumlah</th></tr></thead>
+    <tbody>
+      {% set rows = [stats.top_moods|length, stats.top_mentions|length]|max %}
+      {% for i in range(rows) %}
+        <tr>
+          <td>{{ stats.top_moods[i][0] if i < stats.top_moods|length }}</td>
+          <td>{{ stats.top_moods[i][1] if i < stats.top_moods|length }}</td>
+          <td>{{ '@' ~ stats.top_mentions[i][0] if i < stats.top_mentions|length }}</td>
+          <td>{{ stats.top_mentions[i][1] if i < stats.top_mentions|length }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<script type="module">
+  import { db, hasFirebase } from '/static/js/firebase.js'
+  try{
+    if(hasFirebase && db){
+      db.collection('posts').where('status','==','Approved').onSnapshot((snapshot)=>{
+        const totalPosts = snapshot.size
+        let totalLikes = 0
+        let totalComments = 0
+        const moods = {}
+        snapshot.docs.forEach(doc=>{
+          const d = doc.data()||{}
+          totalLikes += (d.likes||0)
+          totalComments += (d.comments_count||0)
+          if(d.mood){ moods[d.mood] = (moods[d.mood]||0)+1 }
+        })
+        const topMood = Object.entries(moods).sort((a,b)=>b[1]-a[1])[0]?.[0]||'-'
+        const elP = document.getElementById('totalPosts')
+        const elL = document.getElementById('totalLikes')
+        const elC = document.getElementById('totalComments')
+        if(elP) elP.textContent = totalPosts
+        if(elL) elL.textContent = totalLikes
+        if(elC) elC.textContent = totalComments
+        // Update top mood cell if present
+        try{
+          const tbl = document.querySelector('.table tbody')
+          if(tbl && tbl.firstElementChild){
+            tbl.querySelector('tr td')?.textContent = topMood
+          }
+        }catch{}
+      })
+    }
+  }catch(e){ console.warn('Live stats disabled:', e) }
+</script>
+
+<section class="table-wrap" style="margin-top:12px">
+  <table class="table">
+    <thead><tr><th>Hari (WIB)</th><th>Jumlah Post</th></tr></thead>
+    <tbody>
+      {% for it in stats.daily %}
+        <tr><td>{{ it.day }}</td><td>{{ it.count }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

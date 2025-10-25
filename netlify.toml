@@ -1,0 +1,19 @@
+[build]
+  publish = "public"
+  command = "bash scripts/netlify_build.sh"
+
+[[redirects]]
+  from = "/post/*"
+  to = "/post.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=600"

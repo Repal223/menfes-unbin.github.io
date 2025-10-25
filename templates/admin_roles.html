@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-header">
+  <h2>Kelola Role BEM</h2>
+  <p>Ubah role pengguna menjadi admin (BEM) atau user biasa.</p>
+</section>
+
+<section class="form">
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  {% if message %}<div class="flash success">{{ message }}</div>{% endif %}
+  <form method="post">
+    <div class="row">
+      <label for="uid">UID (prioritas)</label>
+      <input id="uid" name="uid" placeholder="Masukkan UID Firebase Auth / doc id users">
+    </div>
+    <div class="row">
+      <label for="username">atau Username</label>
+      <input id="username" name="username" placeholder="Contoh: Anon#24">
+    </div>
+    <div class="row">
+      <label for="role">Role</label>
+      <select id="role" name="role">
+        <option value="user">User</option>
+        <option value="admin">Admin (BEM)</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="btn-primary" type="submit">Simpan</button>
+      <a class="btn" href="{{ url_for('admin') }}">Kembali</a>
+    </div>
+  </form>
+  {% if last %}
+    <div class="hint">Terakhir: UID {{ last.uid }}, username {{ last.username }}, role {{ last.role }}</div>
+  {% endif %}
+</section>
+{% endblock %}
+

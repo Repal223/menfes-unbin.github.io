@@ -1,0 +1,20 @@
+# Local secrets (never commit)
+.env
+sa-key.json
+serviceAccountKey.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+cloudflared.exe
+
+# Node / npm
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

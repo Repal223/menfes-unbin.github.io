@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block content %}
+<article class="post-card" data-author-uid="{{ post.author_uid }}">
+  <header>
+    <div>
+      <h3 class="post-author">{{ post.name }}</h3>
+      <div class="post-meta">To: <strong>{{ post.to }}</strong> &middot; <span data-wib="{{ post.created_iso }}">{{ post.created_at }}</span></div>
+    </div>
+    <div class="post-mood">{{ post.mood }}</div>
+  </header>
+  <div class="post-content">{{ post.content }}</div>
+  <footer class="post-actions">
+    <button class="btn-like" data-id="{{ post.id }}">
+      <img src="{{ url_for('static', filename='images/icons/heart.svg') }}" alt="like"> <span class="like-count">{{ post.likes }}</span>
+    </button>
+    <button class="btn-icon share" data-id="{{ post.id }}" data-link="{{ url_for('post_detail', post_id=post.id, _external=True) }}">
+      <img src="{{ url_for('static', filename='images/icons/share.svg') }}" alt="share"> Bagikan
+    </button>
+    <a class="btn-sm owner-only" data-owner="{{ post.author_uid }}" href="{{ url_for('edit_post', post_id=post.id) }}" style="display:none">Edit</a>
+    <form method="post" action="{{ url_for('delete_post', post_id=post.id) }}" data-owner="{{ post.author_uid }}" class="owner-only" style="display:none">
+      <input type="hidden" name="uid" value="">
+      <button class="btn-sm danger" type="submit">Hapus</button>
+    </form>
+  </footer>
+</article>
+
+<section class="comments">
+  <h3>Komentar</h3>
+  <form class="form" method="post" action="{{ url_for('add_comment', post_id=post.id) }}">
+    <input type="hidden" name="uid" value="">
+    <div class="row">
+      <label for="commenter_name">Nama (opsional)</label>
+      <input id="commenter_name" name="commenter_name" placeholder="Anon jika kosong">
+    </div>
+    <div class="row">
+      <label for="comment">Tulis komentar</label>
+      <textarea id="comment" name="comment" rows="3" required placeholder="Tulis komentar..."></textarea>
+    </div>
+    <div>
+      <button type="submit" class="btn-primary">Kirim Komentar</button>
+    </div>
+  </form>
+
+  {% if not comments %}
+    <div class="empty">Belum ada komentar.</div>
+  {% else %}
+    <ul class="comment-list">
+      {% for c in comments %}
+        <li class="comment-item {{ 'comment-admin' if c.by_admin }}" data-id="{{ c.id }}" data-author-uid="{{ c.author_uid }}">
+          <div class="comment-text">{{ c.text }}</div>
+          <div class="comment-meta">{% if c.by_admin %}<span class="badge-admin">Admin</span> · {% endif %}<span data-wib="{{ c.created_iso }}">{{ c.created_at }}</span></div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+{% endblock %}
+
+
+
+

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Login Admin</h2>
+{% if error %}
+  <div class="flash error">{{ error }}</div>
+{% endif %}
+<form class="form" method="post">
+  <div class="row">
+    <label for="username">Username</label>
+    <input id="username" type="text" name="username" required placeholder="admin">
+  </div>
+  <div class="row">
+    <label for="password">Password</label>
+    <input id="password" type="password" name="password" required>
+  </div>
+  <div class="actions">
+    <button class="btn-primary" type="submit">Masuk</button>
+    <a class="btn" href="/">Batal</a>
+  </div>
+  <p class="hint">Masukkan kredensial admin yang valid.</p>
+{% endblock %}

@@ -1,0 +1,24 @@
+{
+  "hosting": {
+    "site": "menfes-unbin",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      { "source": "**", "run": { "serviceId": "menfes-unbin-api", "region": "asia-southeast2" } }
+    ]
+  },
+  "functions": {
+    "source": "functions"
+  },
+  "firestore": {
+    "rules": "firestore_rules.txt",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": { "port": 8080 }
+  }
+}

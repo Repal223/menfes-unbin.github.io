@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Menfes UNBIN</title>
+  <link rel="icon" href="static/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/css/style.css">
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
+  <script src="./firebase-config.js"></script>
+  <style>
+    .post-list{display:grid;gap:12px}
+    .post-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
+    .post-actions{display:flex;gap:8px}
+  </style>
+  <script>
+    function hasConfig(){ try{ const c = window.FIREBASE_CONFIG||{}; return !!(c.apiKey && !/YOUR|CHANGE_ME|\.\.\./i.test(c.apiKey)) }catch(e){ return false } }
+    window.addEventListener('DOMContentLoaded', async ()=>{
+      try{
+        if(!hasConfig()){
+          document.getElementById('list').innerHTML = '<div class="empty">Konfigurasi Firebase belum diisi (public/firebase-config.js).</div>'
+          return
+        }
+        const app = firebase.initializeApp(window.FIREBASE_CONFIG)
+        const db = firebase.firestore()
+        // Anonymous auth for rules
+        try{ firebase.auth().signInAnonymously().catch(()=>{}) }catch{}
+        try{ firebase.auth().onAuthStateChanged(function(u){ var s=document.getElementById('authStatus'); if(!s) return; s.textContent = u ? 'Terhubung sebagai anonim' : 'Menghubungkan…' }) }catch{}
+        const listEl = document.getElementById('list')
+        // FCM token registration (optional)
+        try{
+          if ('Notification' in window && firebase.messaging){
+            const messaging = firebase.messaging()
+            navigator.serviceWorker.register('firebase-messaging-sw.js').then((reg)=>{
+              try{ messaging.useServiceWorker(reg) }catch{}
+            }).catch(()=>{})
+            const ensureToken = async ()=>{
+              try{
+                let perm = Notification.permission
+                if(perm==='default'){ try{ perm = await Notification.requestPermission() }catch{} }
+                if(perm!=='granted') return
+                const vapid = (window.FIREBASE_VAPID_KEY || null)
+                const token = await messaging.getToken(vapid ? { vapidKey: vapid } : undefined)
+                if(token){
+                  const u = firebase.auth().currentUser
+                  const uid = u ? u.uid : (localStorage.getItem('mf_uid')||'guest')
+                  await db.collection('fcm_tokens').doc(token).set({ uid, token, updated_at: new Date(), user_agent: navigator.userAgent||'' }, { merge: true })
+                }
+              }catch(e){}
+            }
+            firebase.auth().onAuthStateChanged(()=>{ ensureToken() })
+          }
+        }catch{}
+        // Simple in-app notifications for current user
+        try{
+          firebase.auth().onAuthStateChanged((u)=>{
+            if(!u) return
+            db.collection('notifications')
+              .where('receiver_uid','==', u.uid)
+              .where('read','==', false)
+              .orderBy('created_at','desc')
+              .limit(20)
+              .onSnapshot((snap)=>{
+                snap.docChanges().forEach(async (ch)=>{
+                  if(ch.type==='added'){
+                    const n = ch.doc.data()||{}
+                    const wrap = document.querySelector('.toast-wrap') || (function(){ const w=document.createElement('div'); w.className='toast-wrap'; document.body.appendChild(w); return w })()
+                    const box = document.createElement('div'); box.className='toast '+(n.actor_is_admin?'admin':'info')+' in'
+                    const logo = 'static/images/logo-menfes.jpeg'
+                    box.innerHTML = '<img class="toast-logo" alt="Menfes UNBIN" src="'+logo+'"/>' + '<span class="ico">'+ (n.actor_is_admin?'🛡️':'🔔') +'</span><span>'+ (n.message||'Notifikasi baru') +'</span>'
+                    wrap.appendChild(box)
+                    setTimeout(()=>{ try{ box.classList.remove('in'); setTimeout(()=>box.remove(), 600) }catch{} }, 4000)
+                    try{ await db.collection('notifications').doc(ch.doc.id).set({read:true}, {merge:true}) }catch{}
+                  }
+                })
+              })
+          })
+        }catch{}
+        db.collection('posts').where('status','==','Approved').orderBy('created_at','desc').limit(50).onSnapshot((snap)=>{
+          listEl.innerHTML = ''
+          if(snap.empty){ listEl.innerHTML = '<div class="empty">Belum ada menfess.</div>'; return }
+          snap.docs.forEach(doc=>{
+            const d = doc.data()||{}
+            const art = document.createElement('article')
+            art.className = 'post-card'
+            const likes = (d.likes||0)
+            const comments = (d.comments_count||0)
+            const id = doc.id
+            art.innerHTML = `
+              <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                <div>
+                  <h3 class="post-author">${(d.name||'Anon')}</h3>
+                  <div class="post-meta">To: <strong>${d.to||d.university||'-'}</strong></div>
+                </div>
+                <div class="post-mood">${d.mood||'-'}</div>
+              </header>
+              <div class="post-content">${(d.content||'')}</div>
+              <footer class="post-actions">
+                <a class="btn" href="./post.html?id=${id}">Detail</a>
+                <span class="btn-icon"><img src="static/images/icons/heart.svg" alt="like"/> <span class="like-count">${likes}</span></span>
+                <span class="btn-icon"><img src="static/images/icons/comment.svg" alt="comments"/> ${comments}</span>
+              </footer>
+            `
+            listEl.appendChild(art)
+          })
+        })
+      }catch(e){
+        document.getElementById('list').innerHTML = '<div class="empty">Gagal memuat data.</div>'
+        console.error(e)
+      }
+    })
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container row-between">
+      <a href="./index.html" class="brand"><img src="static/images/logo-unbin.jpeg" class="logo"/> <span>Menfes UNBIN</span></a>
+      <nav class="nav">
+        <a class="nav-link" href="./index.html">Home</a>
+        <a class="nav-link" href="./add.html">Kirim</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <section class="page-header"><h1>Menfes UNBIN</h1><p>Curhat, sapa, atau titip pesan.</p><div id="authStatus" class="hint"></div></section>
+    <section id="list" class="post-list"></section>
+  </main>
+  <footer class="site-footer"><div class="container row-between"><p>c BEM KM UNBIN</p><img src="static/images/logo-bem.jpeg" class="logo"/></div></footer>
+</body>
+</html>

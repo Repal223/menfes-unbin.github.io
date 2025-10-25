@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Menfes UNBIN - Detail</title>
+  <link rel="stylesheet" href="static/css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
+  <script src="./firebase-config.js"></script>
+  <script>
+    function toast(msg){
+      try{
+        var wrap = document.querySelector('.toast-wrap'); if(!wrap){ wrap = document.createElement('div'); wrap.className='toast-wrap'; document.body.appendChild(wrap) }
+        var box = document.createElement('div'); box.className='toast info in'; box.innerHTML = '<span class="ico">🔔</span><span>'+ (msg||'') +'</span>'
+        wrap.appendChild(box); setTimeout(function(){ box.classList.remove('in'); setTimeout(function(){ box.remove() }, 600) }, 3000)
+      }catch(e){ alert(msg) }
+    }
+    function qp(k){ const u=new URL(location.href); return u.searchParams.get(k) }
+    function hasConfig(){ try{ const c = window.FIREBASE_CONFIG||{}; return !!(c.apiKey && !/YOUR|CHANGE_ME|\.\.\./i.test(c.apiKey)) }catch(e){ return false } }
+    window.addEventListener('DOMContentLoaded', async ()=>{
+      const id = qp('id'); if(!id){ document.getElementById('content').textContent='ID tidak ditemukan'; return }
+      try{
+        if(!hasConfig()){ document.getElementById('content').innerHTML = '<div class="empty">Konfigurasi Firebase belum diisi (public/firebase-config.js).</div>'; return }
+        const app = firebase.initializeApp(window.FIREBASE_CONFIG)
+        const db = firebase.firestore()
+        try{ firebase.auth().signInAnonymously().catch(()=>{}) }catch{}
+        const cont = document.getElementById('content')
+        let ownerUid = null
+        db.collection('posts').doc(id).onSnapshot((doc)=>{
+          if(!doc.exists){ cont.innerHTML='<div class="empty">Post tidak ditemukan.</div>'; return }
+          const d = doc.data()||{}
+          ownerUid = d.author_uid || null
+          cont.innerHTML = `
+            <article class="post-card">
+              <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                <div>
+                  <h3 class="post-author">${d.name||'Anon'}</h3>
+                  <div class="post-meta">To: <strong>${d.to||'-'}</strong></div>
+                </div>
+                <div class="post-mood">${d.mood||'-'}</div>
+              </header>
+              <div class="post-content">${d.content||''}</div>
+              <footer class="post-actions">
+                <span class="btn-icon"><img src="static/images/icons/heart.svg" alt="like"/> <span class="like-count">${d.likes||0}</span></span>
+                <span class="btn-icon"><img src="static/images/icons/comment.svg" alt="comments"/> ${(d.comments_count||0)}</span>
+              </footer>
+            </article>
+            <section class="comments"><h3>Komentar</h3><ul id="clist" class="comment-list"></ul>
+            <form id="cform" class="form" onsubmit="return false;"><div class="row"><label>Komentar</label><textarea id="ctext" rows="3" required></textarea></div><div><button id="csend" class="btn-primary">Kirim</button></div></form></section>
+          `
+          // Guard: disable send until auth ready
+          try{
+            const btn = document.getElementById('csend')
+            if(btn) btn.disabled = true
+            firebase.auth().onAuthStateChanged(u => { try{ const b=document.getElementById('csend'); if(u && b) b.disabled=false }catch{} })
+          }catch{}
+          try{ firebase.auth().onAuthStateChanged(function(u){ var s=document.getElementById('authStatus'); if(!s) return; s.textContent = u ? 'Terhubung sebagai anonim' : 'Menghubungkan.' }) }catch{}
+        })
+        const list = document.getElementById('clist')
+        // FCM token registration (optional)
+        try{
+          if ('Notification' in window && firebase.messaging){
+            const messaging = firebase.messaging()
+            navigator.serviceWorker.register('firebase-messaging-sw.js').then((reg)=>{
+              try{ messaging.useServiceWorker(reg) }catch{}
+            }).catch(()=>{})
+            const ensureToken = async ()=>{
+              try{
+                let perm = Notification.permission
+                if(perm==='default'){ try{ perm = await Notification.requestPermission() }catch{} }
+                if(perm!=='granted') return
+                const vapid = (window.FIREBASE_VAPID_KEY || null)
+                const token = await messaging.getToken(vapid ? { vapidKey: vapid } : undefined)
+                if(token){
+                  const u = firebase.auth().currentUser
+                  const uid = u ? u.uid : (localStorage.getItem('mf_uid')||'guest')
+                  await db.collection('fcm_tokens').doc(token).set({ uid, token, updated_at: new Date(), user_agent: navigator.userAgent||'' }, { merge: true })
+                }
+              }catch(e){}
+            }
+            firebase.auth().onAuthStateChanged(()=>{ ensureToken() })
+          }
+        }catch{}
+        db.collection('posts').doc(id).collection('comments').orderBy('created_at','asc').onSnapshot((snap)=>{
+          list.innerHTML = ''
+          snap.docs.forEach(c=>{
+            const d = c.data()||{}
+            const li = document.createElement('li'); li.className='comment-item' + (d.by_admin?' comment-admin':'')
+            li.innerHTML = `<div class="comment-text"></div><div class="comment-meta">${d.by_admin?'<span class="badge">Admin</span> &middot; ':''}<span></span></div>`
+            li.querySelector('.comment-text').textContent = d.text||''
+            list.appendChild(li)
+          })
+        })
+
+        // Simple in-app notifications for current user
+        try{
+          firebase.auth().onAuthStateChanged((u)=>{
+            if(!u) return
+            db.collection('notifications')
+              .where('receiver_uid','==', u.uid)
+              .where('read','==', false)
+              .orderBy('created_at','desc')
+              .limit(20)
+              .onSnapshot((snap)=>{
+                snap.docChanges().forEach(async (ch)=>{
+                  if(ch.type==='added'){
+                    const n = ch.doc.data()||{}
+                    var w=document.querySelector('.toast-wrap'); if(!w){ w=document.createElement('div'); w.className='toast-wrap'; document.body.appendChild(w) }
+                    var b=document.createElement('div'); b.className='toast '+(n.actor_is_admin?'admin':'info')+' in'
+                    var logo='static/images/logo-menfes.jpeg'
+                    b.innerHTML = '<img class="toast-logo" alt="Menfes UNBIN" src="'+logo+'"/>' + '<span class="ico">'+ (n.actor_is_admin?'🛡️':'🔔') +'</span><span>'+ (n.message||'Notifikasi baru') +'</span>'
+                    w.appendChild(b); setTimeout(function(){ b.classList.remove('in'); setTimeout(function(){ b.remove() }, 600) }, 4000)
+                    try{ await db.collection('notifications').doc(ch.doc.id).set({read:true}, {merge:true}) }catch(e){}
+                  }
+                })
+              })
+          })
+        }catch(e){}
+
+        document.addEventListener('click', async (e)=>{
+          if(e.target && e.target.id==='csend'){
+            if(!firebase.auth().currentUser){ alert('Menghubungkan.'); return }
+            const val = (document.getElementById('ctext').value||'').trim(); if(!val) return
+            const user = firebase.auth().currentUser
+            const uid = user ? user.uid : null
+            try{
+              await db.collection('posts').doc(id).collection('comments').add({
+                text: val,
+                created_at: new Date(),
+                by_admin: false,
+                author_uid: uid
+              })
+              // client-side fallback: create notification for post owner
+              try{
+                if(ownerUid && uid && ownerUid !== uid){
+                  await db.collection('notifications').add({
+                    sender_uid: uid,
+                    receiver_uid: ownerUid,
+                    post_id: id,
+                    comment_id: null,
+                    type: 'comment',
+                    message: 'Komentar baru masuk',
+                    actor_is_admin: false,
+                    read: false,
+                    created_at: new Date()
+                  })
+                }
+              }catch(e){}
+              document.getElementById('ctext').value=''
+              toast('Komentar terkirim')
+            }catch(err){ console.error(err); toast('Gagal mengirim komentar') }
+          }
+        })
+      }catch(e){ document.getElementById('content').innerHTML = '<div class="empty">Gagal memuat.</div>'; console.error(e) }
+    })
+  </script>
+</head>
+<body>
+  <header class="site-header"><div class="container row-between"><a href="./index.html" class="brand">Menfes UNBIN</a><nav class="nav"><a class="nav-link" href="./index.html">Home</a></nav></div></header>
+  <main class="container"><div id="content"></div><div id="authStatus" class="hint" style="margin-top:10px"></div></main>
+  <footer class="site-footer"><div class="container row-between"><p>c BEM KM UNBIN</p></div></footer>
+</body>
+</html>

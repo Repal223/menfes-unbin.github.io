@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-header">
+  <h2>Dashboard Admin</h2>
+  <p>Hanya admin yang dapat mengakses halaman ini.</p>
+  <div class="stats-grid">
+    <div class="stat"><img src="{{ url_for('static', filename='images/icons/stats.svg') }}" alt="stats"> <span>{{ stats.total_posts }}</span><small>Total Post</small></div>
+    <div class="stat"><img src="{{ url_for('static', filename='images/icons/heart.svg') }}" alt="likes"> <span>{{ stats.total_likes }}</span><small>Total Like</small></div>
+    <div class="stat"><img src="{{ url_for('static', filename='images/icons/comment.svg') }}" alt="comments"> <span>{{ stats.total_comments }}</span><small>Total Komentar</small></div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('trending') }}">Lihat Trending</a>
+    <a class="btn" href="{{ url_for('logout') }}">Logout</a>
+  </div>
+</section>
+
+<section>
+  <h3>Semua Postingan</h3>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nama Pengirim</th>
+          <th>To</th>
+          <th>Isi Pesan (pendek)</th>
+          <th>Mood</th>
+          <th>Status</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in posts %}
+        <tr>
+          <td>{{ p.name }}</td>
+          <td>{{ p.to or p.university }}</td>
+          <td class="mono">{{ p.content_short }}</td>
+          <td>{{ p.mood }}</td>
+          <td><span class="badge {{ 'ok' if p.status == 'Approved' else 'warn' }}">{{ p.status }}</span></td>
+          <td>
+            <form method="post" action="{{ url_for('admin_approve', post_id=p.id) }}" class="inline">
+              <button class="btn-sm" type="submit">Approve</button>
+            </form>
+            {% if p.status != 'Deleted' %}
+            <form method="post" action="{{ url_for('admin_delete', post_id=p.id) }}" class="inline">
+              <button class="btn-sm danger" type="submit">Delete</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('admin_restore', post_id=p.id) }}" class="inline">
+              <button class="btn-sm" type="submit">Restore</button>
+            </form>
+            {% endif %}
+            <a class="btn-sm" href="{{ url_for('post_detail', post_id=p.id) }}">Detail</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

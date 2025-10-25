@@ -1,0 +1,65 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install and build (if package.json exists)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run build || echo "No build script found, skipping build"
+
+      - name: Determine publish directory
+        id: pubdir
+        run: |
+          if [ -d dist ]; then echo "dir=dist" >> "$GITHUB_OUTPUT"; 
+          elif [ -d public ]; then echo "dir=public" >> "$GITHUB_OUTPUT";
+          else mkdir -p public; echo "dir=public" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Prepare static assets (public or dist)
+        run: |
+          PUBDIR="${{ steps.pubdir.outputs.dir }}"
+          if [ "$PUBDIR" = "public" ]; then
+            mkdir -p public/static
+            if [ -d static ]; then cp -r static/* public/static/ || true; fi
+          else
+            # If build output (dist) exists but static is outside, copy into dist/static
+            if [ -d static ]; then mkdir -p dist/static && cp -r static/* dist/static/ || true; fi
+          fi
+
+      - name: Generate Firebase config (from GitHub Secrets)
+        run: |
+          PUBDIR="${{ steps.pubdir.outputs.dir }}"
+          mkdir -p "$PUBDIR"
+          cat > "$PUBDIR/firebase-config.js" <<'EOF'
+window.FIREBASE_CONFIG = {
+  apiKey: "${{ secrets.FIREBASE_API_KEY }}",
+  projectId: "${{ secrets.FIREBASE_PROJECT_ID }}",
+  appId: "${{ secrets.FIREBASE_APP_ID }}",
+  messagingSenderId: "${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}"
+};
+window.FIREBASE_VAPID_KEY = "${{ secrets.FIREBASE_VAPID_KEY }}";
+EOF
+
+      - name: Ensure firebase-config.js exists
+        run: |
+          test -f "${{ steps.pubdir.outputs.dir }}/firebase-config.js" || { echo 'firebase-config.js missing'; exit 1; }
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ steps.pubdir.outputs.dir }}
+          publish_branch: gh-pages
+          force_orphan: true
