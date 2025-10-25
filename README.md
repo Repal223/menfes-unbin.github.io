@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Menfes UNBIN
 
 ## Deploy ke Firebase Hosting
@@ -81,3 +82,6 @@ Tips: Anda bisa pakai `scripts/gh_set_secrets.ps1` untuk mengisi secrets via `gh
 ### Konfigurasi App (Lokal)
 
 - Salin `.env.example` menjadi `.env` lalu isi nilai Firebase dan secret. Aplikasi otomatis meload `.env` saat start.
+=======
+# menfes-unbin.github.io
+>>>>>>> 4c1c2675e93b5bddd49e85c50c3c07b566fc4fc6
