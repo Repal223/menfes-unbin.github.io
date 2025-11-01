@@ -1,0 +1,13 @@
+{
+  "name": "Menfes UNBIN",
+  "short_name": "Menfes",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#d7ccc8",
+  "background_color": "#f8f4ef",
+  "icons": [
+    { "src": "/icons/logo-menfes.jpeg", "sizes": "192x192", "type": "image/jpeg" },
+    { "src": "/icons/logo-menfes.jpeg", "sizes": "512x512", "type": "image/jpeg" }
+  ]
+}
+
